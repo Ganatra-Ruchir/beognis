@@ -951,13 +951,9 @@
       startTime: document.getElementById('f_start').value,
       endTime: document.getElementById('f_end').value,
       fieldVisit: fv.value,
-      visitCount: fv.value === 'Yes' ? String(visitRows.length) : '0',
-      // Each of these is one entry per visit, joined with " | " so a
-      // single sheet row can still hold any number of visits.
-      fieldLocations: visitRows.map(function(v){ return v.location; }).join(' | '),
-      fieldCheckIns: visitRows.map(function(v){ return v.start; }).join(' | '),
-      fieldCheckOuts: visitRows.map(function(v){ return v.end; }).join(' | '),
-      fieldDescriptions: visitRows.map(function(v){ return v.desc; }).join(' | '),
+      // Sent as a real array — the backend writes one row per visit to
+      // a separate "Field Visits" sheet, so any number of visits works.
+      visits: fv.value === 'Yes' ? visitRows : [],
       callingPurpose: callPurpose.value,
       otherCallingPurpose: callPurpose.value === 'Other' ? callOther.value.trim() : '',
       totalCalls: callPurpose.value === 'No calls' ? '0' : document.getElementById('f_callCount').value,
