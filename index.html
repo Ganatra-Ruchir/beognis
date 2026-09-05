@@ -511,14 +511,14 @@
       <button class="submit-btn" id="submitBtn">Submit log</button>
     </div>
 
-    <p class="footer-note">Your entry will be saved to the shared Google Sheet after confirmation.</p>
+    <p class="footer-note">Your entry is saved to the shared Google Sheet after confirmation.</p>
 
   </div>
 
   <div class="confirm-screen" id="confirmScreen">
     <div class="confirm-icon"><i>✓</i></div>
     <h2>Log submitted</h2>
-    <p>Saving your daily activity to the shared Google Sheet.</p>
+    <p>Your daily activity is being saved.</p>
     <button class="view-log-btn" id="viewLogBtn">Open shared team log</button>
     <br>
     <button class="new-entry-btn" id="newEntryBtn">Submit another entry</button>
@@ -531,19 +531,11 @@
 
 </div>
 
-
 <script>
 (function(){
-  // =========================================================
-  // SASHakt DAILY ACTIVITY LOG -> GOOGLE SHEETS CONNECTION
-  // =========================================================
-  // 1) Convert the Excel/XLSM file to a native Google Sheet.
-  // 2) Deploy Code.gs as a Web App.
-  // 3) Paste that permanent /exec URL below.
-  var GOOGLE_SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby1VR-9d7YrFb-aqo1OW6tJO-k6dm49f8IAy2zWUDXSjmOfDjY2XngJQd-5TS6FroypIw/exec';
+  'use strict';
 
-  // Optional: paste the native Google Sheet URL here so the
-  // "Open shared team log" button opens the sheet.
+  var GOOGLE_SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby1VR-9d7YrFb-aqo1OW6tJO-k6dm49f8IAy2zWUDXSjmOfDjY2XngJQd-5TS6FroypIw/exec';
   var GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1LK0joZhUKv7YReL5Fu_pLD3h_-J_XlXQ/edit?gid=1445133786#gid=1445133786';
 
   var fieldVisitRadios = document.getElementsByName('fieldVisit');
@@ -558,161 +550,328 @@
   var coordOtherInput = document.getElementById('f_coordOther');
   var sectorRows = document.querySelectorAll('.sector-row');
 
-  // Start conditional sections hidden until the user selects them.
   fieldVisitDetails.classList.remove('show');
 
-  fieldVisitRadios.forEach(function(r){
-    r.addEventListener('change', function(){
-      var selected = Array.from(fieldVisitRadios).find(function(x){ return x.checked; });
-      fieldVisitDetails.classList.toggle('show', selected && selected.value === 'Yes');
+  Array.prototype.forEach.call(fieldVisitRadios, function(radio){
+    radio.addEventListener('change', function(){
+      var selected = Array.prototype.find.call(
+        fieldVisitRadios,
+        function(r){ return r.checked; }
+      );
+
+      fieldVisitDetails.classList.toggle(
+        'show',
+        Boolean(selected && selected.value === 'Yes')
+      );
+
       updateProgress();
     });
   });
 
   callPurpose.addEventListener('change', function(){
-    var v = callPurpose.value;
-    callDetails.classList.toggle('show', v !== '' && v !== 'No calls');
-    callOther.classList.toggle('show', v === 'Other');
+    var value = callPurpose.value;
+
+    callDetails.classList.toggle(
+      'show',
+      value !== '' && value !== 'No calls'
+    );
+
+    callOther.classList.toggle('show', value === 'Other');
+
+    if(value !== 'Other'){
+      callOther.value = '';
+    }
+
+    if(value === 'No calls'){
+      document.getElementById('f_callCount').value = '';
+      document.getElementById('f_callPositive').value = '';
+    }
+
     updateProgress();
   });
 
   coordNone.addEventListener('change', function(){
     if(coordNone.checked){
-      coordItems.forEach(function(c){ c.checked = false; });
+      Array.prototype.forEach.call(coordItems, function(c){
+        c.checked = false;
+      });
+
       coordOtherCheck.checked = false;
       coordOtherInput.classList.remove('show');
+      coordOtherInput.value = '';
     }
   });
 
-  function uncheckNoneIfOthersActive(){
-    var anyOther =
-      Array.from(coordItems).some(function(c){ return c.checked; }) ||
-      coordOtherCheck.checked;
+  function uncheckNoneIfOtherCoordinationSelected(){
+    var anyStandard = Array.prototype.some.call(
+      coordItems,
+      function(c){ return c.checked; }
+    );
 
-    if(anyOther) coordNone.checked = false;
+    if(anyStandard || coordOtherCheck.checked){
+      coordNone.checked = false;
+    }
   }
 
-  coordItems.forEach(function(c){
-    c.addEventListener('change', uncheckNoneIfOthersActive);
+  Array.prototype.forEach.call(coordItems, function(c){
+    c.addEventListener(
+      'change',
+      uncheckNoneIfOtherCoordinationSelected
+    );
   });
 
   coordOtherCheck.addEventListener('change', function(){
-    uncheckNoneIfOthersActive();
-    coordOtherInput.classList.toggle('show', coordOtherCheck.checked);
+    uncheckNoneIfOtherCoordinationSelected();
+
+    coordOtherInput.classList.toggle(
+      'show',
+      coordOtherCheck.checked
+    );
+
+    if(!coordOtherCheck.checked){
+      coordOtherInput.value = '';
+    }
   });
 
-  sectorRows.forEach(function(row){
-    var check = row.querySelector('.sector-check');
+  Array.prototype.forEach.call(sectorRows, function(row){
+    var checkbox = row.querySelector('.sector-check');
 
-    check.addEventListener('change', function(){
-      row.classList.toggle('active', check.checked);
+    checkbox.addEventListener('change', function(){
+      row.classList.toggle('active', checkbox.checked);
 
-      if(check.checked && row.dataset.sector !== 'No admissions'){
-        var noAdm = document.querySelector(
+      if(
+        checkbox.checked &&
+        row.dataset.sector === 'No admissions'
+      ){
+        Array.prototype.forEach.call(
+          sectorRows,
+          function(otherRow){
+            if(otherRow.dataset.sector !== 'No admissions'){
+              var otherCheck =
+                otherRow.querySelector('.sector-check');
+
+              var countInput =
+                otherRow.querySelector('.sector-count');
+
+              otherCheck.checked = false;
+              otherRow.classList.remove('active');
+
+              if(countInput){
+                countInput.value = '';
+              }
+            }
+          }
+        );
+      } else if(checkbox.checked){
+        var noAdmissions = document.querySelector(
           '.sector-row[data-sector="No admissions"] .sector-check'
         );
-        noAdm.checked = false;
-        noAdm.closest('.sector-row').classList.remove('active');
-      }
 
-      if(check.checked && row.dataset.sector === 'No admissions'){
-        sectorRows.forEach(function(r){
-          if(r.dataset.sector !== 'No admissions'){
-            r.querySelector('.sector-check').checked = false;
-            r.classList.remove('active');
-
-            var countInput = r.querySelector('.sector-count');
-            if(countInput) countInput.value = '';
-          }
-        });
+        if(noAdmissions){
+          noAdmissions.checked = false;
+          noAdmissions
+            .closest('.sector-row')
+            .classList.remove('active');
+        }
       }
     });
   });
 
   function clearError(id){
-    document.getElementById(id).classList.remove('show');
+    var element = document.getElementById(id);
+
+    if(element){
+      element.classList.remove('show');
+    }
   }
 
-  function setError(id){
-    document.getElementById(id).classList.add('show');
+  function setError(id, message){
+    var element = document.getElementById(id);
+
+    if(!element){
+      return;
+    }
+
+    if(message){
+      element.textContent = message;
+    }
+
+    element.classList.add('show');
   }
 
   function updateProgress(){
     var total = 6;
     var filled = 0;
 
-    if(document.getElementById('f_date').value) filled++;
-    if(document.getElementById('f_name').value) filled++;
+    if(document.getElementById('f_date').value){
+      filled++;
+    }
+
+    if(document.getElementById('f_name').value){
+      filled++;
+    }
+
     if(
       document.getElementById('f_start').value &&
       document.getElementById('f_end').value
-    ) filled++;
+    ){
+      filled++;
+    }
 
-    var fv = Array.from(fieldVisitRadios).find(function(r){ return r.checked; });
-    if(fv) filled++;
+    var fieldSelected =
+      Array.prototype.some.call(
+        fieldVisitRadios,
+        function(r){ return r.checked; }
+      );
 
-    if(callPurpose.value) filled++;
+    if(fieldSelected){
+      filled++;
+    }
 
-    var anyCoord =
+    if(callPurpose.value){
+      filled++;
+    }
+
+    var anyCoordination =
       coordNone.checked ||
-      Array.from(coordItems).some(function(c){ return c.checked; }) ||
+      Array.prototype.some.call(
+        coordItems,
+        function(c){ return c.checked; }
+      ) ||
       coordOtherCheck.checked;
 
-    if(anyCoord) filled++;
+    if(anyCoordination){
+      filled++;
+    }
 
     document.getElementById('progressFill').style.width =
       Math.max(8, (filled / total) * 100) + '%';
   }
 
-  document.querySelectorAll('input,select,textarea').forEach(function(el){
-    el.addEventListener('input', updateProgress);
-    el.addEventListener('change', updateProgress);
-  });
+  Array.prototype.forEach.call(
+    document.querySelectorAll('input, select, textarea'),
+    function(el){
+      el.addEventListener('input', updateProgress);
+      el.addEventListener('change', updateProgress);
+    }
+  );
 
-  // Use the user's local date instead of UTC to avoid date shifts.
   var now = new Date();
-  var localToday =
+
+  var today =
     now.getFullYear() + '-' +
     String(now.getMonth() + 1).padStart(2, '0') + '-' +
     String(now.getDate()).padStart(2, '0');
 
-  document.getElementById('f_date').value = localToday;
+  document.getElementById('f_date').value = today;
+
   updateProgress();
+
+  function getSelectedFieldVisit(){
+    return Array.prototype.find.call(
+      fieldVisitRadios,
+      function(r){ return r.checked; }
+    );
+  }
 
   function sectorCount(sectorName){
     var row = document.querySelector(
       '.sector-row[data-sector="' + sectorName + '"]'
     );
 
-    if(!row) return '0';
+    if(!row){
+      return '0';
+    }
 
-    var check = row.querySelector('.sector-check');
-    if(!check || !check.checked) return '0';
+    var checkbox = row.querySelector('.sector-check');
+    var countInput = row.querySelector('.sector-count');
 
-    var countEl = row.querySelector('.sector-count');
-    return countEl && countEl.value !== '' ? countEl.value : '0';
+    if(!checkbox || !checkbox.checked){
+      return '0';
+    }
+
+    if(!countInput){
+      return '0';
+    }
+
+    return countInput.value === ''
+      ? '0'
+      : countInput.value;
+  }
+
+  function selectedAdmissionCountsAreValid(){
+    var valid = true;
+
+    Array.prototype.forEach.call(
+      sectorRows,
+      function(row){
+        var checkbox =
+          row.querySelector('.sector-check');
+
+        if(
+          checkbox &&
+          checkbox.checked &&
+          row.dataset.sector !== 'No admissions'
+        ){
+          var countInput =
+            row.querySelector('.sector-count');
+
+          var count =
+            countInput
+              ? Number(countInput.value)
+              : 0;
+
+          if(
+            !countInput ||
+            countInput.value === '' ||
+            !Number.isFinite(count) ||
+            count < 1
+          ){
+            valid = false;
+          }
+        }
+      }
+    );
+
+    return valid;
   }
 
   function makeSubmissionToken(){
-    return 'SASH-' + Date.now() + '-' +
-      Math.random().toString(36).slice(2, 10);
+    return (
+      'SASH-' +
+      Date.now() +
+      '-' +
+      Math.random().toString(36).slice(2, 10)
+    );
   }
 
   function jsonpRequest(params, timeoutMs){
     return new Promise(function(resolve, reject){
       var callbackName =
-        '__sashakt_cb_' + Date.now() + '_' +
+        '__sashaktCallback_' +
+        Date.now() +
+        '_' +
         Math.random().toString(36).slice(2);
 
-      params.callback = callbackName;
+      var script =
+        document.createElement('script');
 
-      var script = document.createElement('script');
-      var timer;
+      var timer = null;
 
       function cleanup(){
-        clearTimeout(timer);
-        if(script.parentNode) script.parentNode.removeChild(script);
-        try{ delete window[callbackName]; }catch(e){ window[callbackName] = undefined; }
+        if(timer){
+          clearTimeout(timer);
+        }
+
+        if(script.parentNode){
+          script.parentNode.removeChild(script);
+        }
+
+        try{
+          delete window[callbackName];
+        } catch(error){
+          window[callbackName] = undefined;
+        }
       }
 
       window[callbackName] = function(data){
@@ -722,22 +881,46 @@
 
       script.onerror = function(){
         cleanup();
-        reject(new Error('Could not reach Google Apps Script.'));
+
+        reject(
+          new Error(
+            'Could not reach the Google Apps Script endpoint.'
+          )
+        );
       };
 
-      var query = new URLSearchParams();
+      var query =
+        new URLSearchParams();
+
       Object.keys(params).forEach(function(key){
-        query.append(key, params[key]);
+        query.append(
+          key,
+          String(params[key])
+        );
       });
+
+      query.append(
+        'callback',
+        callbackName
+      );
 
       script.src =
         GOOGLE_SHEETS_WEB_APP_URL +
-        (GOOGLE_SHEETS_WEB_APP_URL.indexOf('?') >= 0 ? '&' : '?') +
+        (
+          GOOGLE_SHEETS_WEB_APP_URL.indexOf('?') >= 0
+            ? '&'
+            : '?'
+        ) +
         query.toString();
 
       timer = setTimeout(function(){
         cleanup();
-        reject(new Error('Google Sheets confirmation timed out.'));
+
+        reject(
+          new Error(
+            'Google Sheets confirmation timed out.'
+          )
+        );
       }, timeoutMs || 8000);
 
       document.body.appendChild(script);
@@ -747,17 +930,34 @@
   function waitForConfirmation(token, attempt){
     attempt = attempt || 1;
 
-    return jsonpRequest({
-      action: 'status',
-      token: token
-    }, 7000).then(function(result){
-      if(result && result.ok === true){
+    return jsonpRequest(
+      {
+        action: 'status',
+        token: token
+      },
+      7000
+    ).then(function(result){
+      if(
+        result &&
+        result.ok === true
+      ){
         return result;
+      }
+
+      if(
+        result &&
+        result.pending === false &&
+        result.error
+      ){
+        throw new Error(result.error);
       }
 
       if(attempt >= 8){
         throw new Error(
-          (result && result.error) ||
+          (
+            result &&
+            result.error
+          ) ||
           'The submission could not be confirmed in Google Sheets.'
         );
       }
@@ -765,272 +965,464 @@
       return new Promise(function(resolve){
         setTimeout(resolve, 700);
       }).then(function(){
-        return waitForConfirmation(token, attempt + 1);
+        return waitForConfirmation(
+          token,
+          attempt + 1
+        );
       });
     });
   }
 
-  document.getElementById('submitBtn').addEventListener('click', function(){
-    var valid = true;
+  document
+    .getElementById('submitBtn')
+    .addEventListener(
+      'click',
+      function(){
+        var valid = true;
 
-    [
-      'err_date','err_name','err_time','err_fieldVisit','err_visitCount',
-      'err_locations','err_fieldTime','err_fieldDesc','err_callPurpose',
-      'err_callCount','err_callPositive','err_coord','err_sector',
-      'err_profiling'
-    ].forEach(clearError);
+        [
+          'err_date',
+          'err_name',
+          'err_time',
+          'err_fieldVisit',
+          'err_visitCount',
+          'err_locations',
+          'err_fieldTime',
+          'err_fieldDesc',
+          'err_callPurpose',
+          'err_callCount',
+          'err_callPositive',
+          'err_coord',
+          'err_sector',
+          'err_profiling'
+        ].forEach(clearError);
 
-    if(!document.getElementById('f_date').value){
-      setError('err_date'); valid = false;
-    }
+        if(
+          !document.getElementById('f_date').value
+        ){
+          setError('err_date');
+          valid = false;
+        }
 
-    if(!document.getElementById('f_name').value){
-      setError('err_name'); valid = false;
-    }
+        if(
+          !document.getElementById('f_name').value
+        ){
+          setError('err_name');
+          valid = false;
+        }
 
-    if(
-      !document.getElementById('f_start').value ||
-      !document.getElementById('f_end').value
-    ){
-      setError('err_time'); valid = false;
-    }
+        if(
+          !document.getElementById('f_start').value ||
+          !document.getElementById('f_end').value
+        ){
+          setError('err_time');
+          valid = false;
+        }
 
-    var fv = Array.from(fieldVisitRadios).find(function(r){ return r.checked; });
+        var fieldVisit =
+          getSelectedFieldVisit();
 
-    if(!fv){
-      setError('err_fieldVisit');
-      valid = false;
-    } else if(fv.value === 'Yes'){
-      if(!document.getElementById('f_visitCount').value){
-        setError('err_visitCount'); valid = false;
-      }
-      if(!document.getElementById('f_locations').value.trim()){
-        setError('err_locations'); valid = false;
-      }
-      if(
-        !document.getElementById('f_fieldStart').value ||
-        !document.getElementById('f_fieldEnd').value
-      ){
-        setError('err_fieldTime'); valid = false;
-      }
-      if(!document.getElementById('f_fieldDesc').value.trim()){
-        setError('err_fieldDesc'); valid = false;
-      }
-    }
+        if(!fieldVisit){
+          setError('err_fieldVisit');
+          valid = false;
+        } else if(fieldVisit.value === 'Yes'){
+          var visitCountRaw =
+            document.getElementById('f_visitCount').value;
 
-    if(!callPurpose.value){
-      setError('err_callPurpose');
-      valid = false;
-    } else if(callPurpose.value !== 'No calls'){
-      if(document.getElementById('f_callCount').value === ''){
-        setError('err_callCount'); valid = false;
-      }
-      if(document.getElementById('f_callPositive').value === ''){
-        setError('err_callPositive'); valid = false;
-      }
-    }
+          var visitCount =
+            Number(visitCountRaw);
 
-    var anyCoord =
-      coordNone.checked ||
-      Array.from(coordItems).some(function(c){ return c.checked; }) ||
-      coordOtherCheck.checked;
+          if(
+            visitCountRaw === '' ||
+            !Number.isFinite(visitCount) ||
+            visitCount < 1
+          ){
+            setError(
+              'err_visitCount',
+              'Enter a valid number of field visits.'
+            );
 
-    if(!anyCoord){
-      setError('err_coord');
-      valid = false;
-    }
+            valid = false;
+          }
 
-    var anySector =
-      Array.from(document.querySelectorAll('.sector-check'))
-        .some(function(c){ return c.checked; });
+          if(
+            !document
+              .getElementById('f_locations')
+              .value
+              .trim()
+          ){
+            setError('err_locations');
+            valid = false;
+          }
 
-    if(!anySector){
-      setError('err_sector');
-      valid = false;
-    }
+          if(
+            !document.getElementById('f_fieldStart').value ||
+            !document.getElementById('f_fieldEnd').value
+          ){
+            setError('err_fieldTime');
+            valid = false;
+          }
 
-    if(document.getElementById('f_profiling').value === ''){
-      setError('err_profiling');
-      valid = false;
-    }
+          if(
+            !document
+              .getElementById('f_fieldDesc')
+              .value
+              .trim()
+          ){
+            setError('err_fieldDesc');
+            valid = false;
+          }
+        }
 
-    if(!valid){
-      var firstError = document.querySelector('.error-msg.show');
-      if(firstError){
-        firstError.scrollIntoView({behavior:'smooth', block:'center'});
-      }
-      return;
-    }
+        if(!callPurpose.value){
+          setError('err_callPurpose');
+          valid = false;
+        } else if(callPurpose.value !== 'No calls'){
+          var totalCallsRaw =
+            document.getElementById('f_callCount').value;
 
-    if(
-      GOOGLE_SHEETS_WEB_APP_URL.indexOf('PASTE_YOUR_') === 0 ||
-      GOOGLE_SHEETS_WEB_APP_URL.indexOf('/exec') === -1
-    ){
-      alert('Apps Script Web App URL is missing. Paste the permanent /exec URL into the HTML first.');
-      return;
-    }
+          var positiveRaw =
+            document.getElementById('f_callPositive').value;
 
-    var noAdmissionsRow =
-      document.querySelector('.sector-row[data-sector="No admissions"]');
+          var totalCalls =
+            Number(totalCallsRaw);
 
-    var noAdmissionsChecked =
-      noAdmissionsRow &&
-      noAdmissionsRow.querySelector('.sector-check').checked;
+          var positiveResponses =
+            Number(positiveRaw);
 
-    var standardCoord = [];
+          if(
+            totalCallsRaw === '' ||
+            !Number.isFinite(totalCalls) ||
+            totalCalls < 0
+          ){
+            setError('err_callCount');
+            valid = false;
+          }
 
-    if(coordNone.checked){
-      standardCoord.push('No activity today');
-    }
+          if(
+            positiveRaw === '' ||
+            !Number.isFinite(positiveResponses) ||
+            positiveResponses < 0
+          ){
+            setError('err_callPositive');
+            valid = false;
+          } else if(
+            Number.isFinite(totalCalls) &&
+            positiveResponses > totalCalls
+          ){
+            setError(
+              'err_callPositive',
+              'Positive responses cannot be more than total calls.'
+            );
 
-    coordItems.forEach(function(c){
-      if(c.checked) standardCoord.push(c.value);
-    });
+            valid = false;
+          }
+        }
 
-    if(coordOtherCheck.checked){
-      standardCoord.push('Other');
-    }
+        var anyCoordination =
+          coordNone.checked ||
+          Array.prototype.some.call(
+            coordItems,
+            function(c){
+              return c.checked;
+            }
+          ) ||
+          coordOtherCheck.checked;
 
-    var submissionToken = makeSubmissionToken();
+        if(!anyCoordination){
+          setError('err_coord');
+          valid = false;
+        }
 
-    var entry = {
-      submissionToken: submissionToken,
-      date: document.getElementById('f_date').value,
-      memberName: document.getElementById('f_name').value,
-      startTime: document.getElementById('f_start').value,
-      endTime: document.getElementById('f_end').value,
-      fieldVisit: fv.value,
-      visitCount:
-        fv.value === 'Yes'
-          ? document.getElementById('f_visitCount').value
-          : '',
-      fieldLocations:
-        fv.value === 'Yes'
-          ? document.getElementById('f_locations').value
-          : '',
-      fieldCheckIn:
-        fv.value === 'Yes'
-          ? document.getElementById('f_fieldStart').value
-          : '',
-      fieldCheckOut:
-        fv.value === 'Yes'
-          ? document.getElementById('f_fieldEnd').value
-          : '',
-      fieldDescription:
-        fv.value === 'Yes'
-          ? document.getElementById('f_fieldDesc').value
-          : '',
-      callingPurpose: callPurpose.value,
-      otherCallingPurpose:
-        callPurpose.value === 'Other'
-          ? callOther.value.trim()
-          : '',
-      totalCalls:
-        callPurpose.value === 'No calls'
-          ? '0'
-          : document.getElementById('f_callCount').value,
-      positiveResponses:
-        callPurpose.value === 'No calls'
-          ? '0'
-          : document.getElementById('f_callPositive').value,
-      coordinationActivities: standardCoord.join(', '),
-      otherCoordinationActivity:
-        coordOtherCheck.checked
-          ? coordOtherInput.value.trim()
-          : '',
-      setAdmissions: sectorCount('SET'),
-      btAdmissions: sectorCount('BT'),
-      ddeoAdmissions: sectorCount('DDEO'),
-      gstAdmissions: sectorCount('GST'),
-      otherAdmissions: sectorCount('Other'),
-      noAdmissionsToday: noAdmissionsChecked ? 'Yes' : 'No',
-      familyProfilingForms: document.getElementById('f_profiling').value,
-      blockers: document.getElementById('f_blockers').value.trim(),
-      otherNotes: document.getElementById('f_otherNotes').value.trim()
-    };
+        if(
+          coordOtherCheck.checked &&
+          !coordOtherInput.value.trim()
+        ){
+          setError(
+            'err_coord',
+            'Describe the other coordination activity.'
+          );
 
-    var submitBtn = document.getElementById('submitBtn');
-    var originalText = submitBtn.textContent;
+          valid = false;
+        }
 
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting...';
+        var anySector =
+          Array.prototype.some.call(
+            document.querySelectorAll('.sector-check'),
+            function(c){
+              return c.checked;
+            }
+          );
 
-    var body = new URLSearchParams();
+        if(!anySector){
+          setError('err_sector');
+          valid = false;
+        } else if(
+          !selectedAdmissionCountsAreValid()
+        ){
+          setError(
+            'err_sector',
+            'Enter a count of at least 1 for every selected admission sector.'
+          );
 
-    Object.keys(entry).forEach(function(key){
-      body.append(
-        key,
-        entry[key] == null ? '' : String(entry[key])
-      );
-    });
+          valid = false;
+        }
 
-    fetch(GOOGLE_SHEETS_WEB_APP_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: body,
-      keepalive: true
-    })
-    .then(function(){
-      submitBtn.textContent = 'Confirming...';
-      return waitForConfirmation(submissionToken, 1);
-    })
-    .then(function(result){
-      try{
-        localStorage.setItem(
-          'sashakt-daily-log:' + submissionToken,
-          JSON.stringify(entry)
+        var profilingRaw =
+          document.getElementById('f_profiling').value;
+
+        var profiling =
+          Number(profilingRaw);
+
+        if(
+          profilingRaw === '' ||
+          !Number.isFinite(profiling) ||
+          profiling < 0
+        ){
+          setError('err_profiling');
+          valid = false;
+        }
+
+        if(!valid){
+          var firstError =
+            document.querySelector('.error-msg.show');
+
+          if(firstError){
+            firstError.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center'
+            });
+          }
+
+          return;
+        }
+
+        var noAdmissionsRow =
+          document.querySelector(
+            '.sector-row[data-sector="No admissions"]'
+          );
+
+        var noAdmissionsChecked =
+          Boolean(
+            noAdmissionsRow &&
+            noAdmissionsRow
+              .querySelector('.sector-check')
+              .checked
+          );
+
+        var coordinationActivities = [];
+
+        if(coordNone.checked){
+          coordinationActivities.push(
+            'No activity today'
+          );
+        }
+
+        Array.prototype.forEach.call(
+          coordItems,
+          function(c){
+            if(c.checked){
+              coordinationActivities.push(
+                c.value
+              );
+            }
+          }
         );
-      }catch(e){}
 
-      document.getElementById('formBody').classList.add('hide');
-      document.getElementById('confirmScreen').classList.add('show');
+        if(coordOtherCheck.checked){
+          coordinationActivities.push('Other');
+        }
 
-      var confirmText = document.querySelector('#confirmScreen p');
-      if(confirmText){
-        confirmText.textContent =
-          'Your daily activity has been saved to the shared Google Sheet.';
+        var token =
+          makeSubmissionToken();
+
+        var entry = {
+          submissionToken: token,
+          date:
+            document.getElementById('f_date').value,
+          memberName:
+            document.getElementById('f_name').value,
+          startTime:
+            document.getElementById('f_start').value,
+          endTime:
+            document.getElementById('f_end').value,
+          fieldVisit:
+            fieldVisit.value,
+          visitCount:
+            fieldVisit.value === 'Yes'
+              ? document.getElementById('f_visitCount').value
+              : '',
+          fieldLocations:
+            fieldVisit.value === 'Yes'
+              ? document.getElementById('f_locations').value.trim()
+              : '',
+          fieldCheckIn:
+            fieldVisit.value === 'Yes'
+              ? document.getElementById('f_fieldStart').value
+              : '',
+          fieldCheckOut:
+            fieldVisit.value === 'Yes'
+              ? document.getElementById('f_fieldEnd').value
+              : '',
+          fieldDescription:
+            fieldVisit.value === 'Yes'
+              ? document.getElementById('f_fieldDesc').value.trim()
+              : '',
+          callingPurpose:
+            callPurpose.value,
+          otherCallingPurpose:
+            callPurpose.value === 'Other'
+              ? callOther.value.trim()
+              : '',
+          totalCalls:
+            callPurpose.value === 'No calls'
+              ? '0'
+              : document.getElementById('f_callCount').value,
+          positiveResponses:
+            callPurpose.value === 'No calls'
+              ? '0'
+              : document.getElementById('f_callPositive').value,
+          coordinationActivities:
+            coordinationActivities.join(', '),
+          otherCoordinationActivity:
+            coordOtherCheck.checked
+              ? coordOtherInput.value.trim()
+              : '',
+          setAdmissions:
+            sectorCount('SET'),
+          btAdmissions:
+            sectorCount('BT'),
+          ddeoAdmissions:
+            sectorCount('DDEO'),
+          gstAdmissions:
+            sectorCount('GST'),
+          otherAdmissions:
+            sectorCount('Other'),
+          noAdmissionsToday:
+            noAdmissionsChecked
+              ? 'Yes'
+              : 'No',
+          familyProfilingForms:
+            profilingRaw,
+          blockers:
+            document.getElementById('f_blockers').value.trim(),
+          otherNotes:
+            document.getElementById('f_otherNotes').value.trim()
+        };
+
+        var submitBtn =
+          document.getElementById('submitBtn');
+
+        var originalButtonText =
+          submitBtn.textContent;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+
+        var body =
+          new URLSearchParams();
+
+        Object.keys(entry).forEach(function(key){
+          body.append(
+            key,
+            entry[key] == null
+              ? ''
+              : String(entry[key])
+          );
+        });
+
+        fetch(
+          GOOGLE_SHEETS_WEB_APP_URL,
+          {
+            method: 'POST',
+            mode: 'no-cors',
+            body: body,
+            keepalive: true
+          }
+        )
+        .then(function(){
+          submitBtn.textContent =
+            'Confirming...';
+
+          return waitForConfirmation(
+            token,
+            1
+          );
+        })
+        .then(function(){
+          try{
+            localStorage.setItem(
+              'sashakt-daily-log:' + token,
+              JSON.stringify(entry)
+            );
+          } catch(error){}
+
+          document
+            .getElementById('formBody')
+            .classList.add('hide');
+
+          document
+            .getElementById('confirmScreen')
+            .classList.add('show');
+
+          var confirmationText =
+            document.querySelector(
+              '#confirmScreen p'
+            );
+
+          if(confirmationText){
+            confirmationText.textContent =
+              'Your daily activity has been saved to the shared Google Sheet.';
+          }
+        })
+        .catch(function(error){
+          console.error(
+            'Submission error:',
+            error
+          );
+
+          var message =
+            'The entry was not confirmed in Google Sheets.\\n\\n' +
+            (
+              error && error.message
+                ? error.message
+                : 'Unknown connection error'
+            ) +
+            '\\n\\nYour form data is still on this page, so you can try again.';
+
+          alert(message);
+        })
+        .finally(function(){
+          submitBtn.disabled = false;
+          submitBtn.textContent =
+            originalButtonText;
+        });
       }
-    })
-    .catch(function(err){
-      console.error('Submission error:', err);
-      alert(
-        'The entry was not confirmed in Google Sheets.
-
-' +
-        (err && err.message ? err.message : 'Unknown connection error') +
-        '
-
-Your form data is still on this page. Try again after checking the Apps Script deployment.'
-      );
-    })
-    .finally(function(){
-      submitBtn.disabled = false;
-      submitBtn.textContent = originalText;
-    });
-  });
-
-  document.getElementById('newEntryBtn').addEventListener('click', function(){
-    location.reload();
-  });
-
-  document.getElementById('viewLogBtn').addEventListener('click', function(){
-    if(
-      GOOGLE_SHEET_URL.indexOf('PASTE_YOUR_') === 0 ||
-      GOOGLE_SHEET_URL.indexOf('docs.google.com/spreadsheets') === -1
-    ){
-      alert('Paste the native Google Sheet URL into the HTML first.');
-      return;
-    }
-
-    window.open(
-      GOOGLE_SHEET_URL,
-      '_blank',
-      'noopener,noreferrer'
     );
-  });
+
+  document
+    .getElementById('newEntryBtn')
+    .addEventListener(
+      'click',
+      function(){
+        window.location.reload();
+      }
+    );
+
+  document
+    .getElementById('viewLogBtn')
+    .addEventListener(
+      'click',
+      function(){
+        window.open(
+          GOOGLE_SHEET_URL,
+          '_blank',
+          'noopener,noreferrer'
+        );
+      }
+    );
 })();
 </script>
-
 
 
 
