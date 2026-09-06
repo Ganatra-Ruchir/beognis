@@ -88,6 +88,19 @@
   .banner.show{display:block;}
   .banner.error{background:var(--danger-bg);color:var(--danger);border:1px solid #E8C7C2;}
   .banner.info{background:#F2F4F9;color:var(--indigo-dark);border:1px solid #CBD3E8;}
+  .leave-banner{
+    margin:0 0 16px;
+    padding:12px 14px;
+    border-radius:8px;
+    font-size:13px;
+    line-height:1.5;
+    display:none;
+    background:#FBF1E4;
+    color:var(--marigold-dark);
+    border:1px solid #ECD3A8;
+  }
+  .leave-banner.show{display:block;}
+  #restOfForm.hide, #timeFieldWrap.hide{display:none;}
   .section{
     background:var(--card);
     margin:18px 16px 0;
@@ -380,6 +393,16 @@
         </select>
         <p class="error-msg" id="err_name">Select your name.</p>
       </div>
+      <div class="field">
+        <label class="q">Attendance<span class="req">*</span></label>
+        <div class="radio-row">
+          <label class="radio-opt"><input type="radio" name="attendance" value="Present">Present</label>
+          <label class="radio-opt"><input type="radio" name="attendance" value="Leave">On leave</label>
+        </div>
+        <p class="error-msg" id="err_attendance">Select present or on leave.</p>
+      </div>
+      <div class="leave-banner" id="leaveBanner">You are marked on leave for today. The rest of the form is skipped, and this entry will be logged as Leave for the whole day.</div>
+      <div id="timeFieldWrap">
       <div class="field grid2">
         <div>
           <label class="q">Start time (check-in)<span class="req">*</span></label>
@@ -391,8 +414,10 @@
         </div>
         <p class="error-msg" id="err_time" style="grid-column:1/-1;">Enter both check-in and check-out times.</p>
       </div>
+      </div>
     </div>
 
+    <div id="restOfForm">
     <div class="section">
       <p class="section-title"><span class="section-num">2</span>Field visits</p>
       <div class="field">
@@ -523,6 +548,7 @@
         <textarea id="f_otherNotes" placeholder="Anything else worth flagging"></textarea>
       </div>
     </div>
+    </div>
 
     <div class="submit-bar">
       <button class="submit-btn" id="submitBtn">Submit log</button>
@@ -567,6 +593,10 @@
   var coordOtherInput = document.getElementById('f_coordOther');
   var sectorRows = document.querySelectorAll('.sector-row');
   var submitErrorBanner = document.getElementById('submitError');
+  var attendanceRadios = document.getElementsByName('attendance');
+  var timeFieldWrap = document.getElementById('timeFieldWrap');
+  var restOfForm = document.getElementById('restOfForm');
+  var leaveBanner = document.getElementById('leaveBanner');
 
   var visitCounter = 0;
 
@@ -650,6 +680,24 @@
     });
   });
 
+  // ---------- Attendance / Leave toggle ----------
+  // When "On leave" is selected, the rest of the form (time, visits,
+  // calls, coordination, admissions, notes) is hidden and skipped —
+  // the backend logs the whole row as "Leave" for that day.
+  function toggleAttendanceUI(isLeave){
+    timeFieldWrap.classList.toggle('hide', isLeave);
+    restOfForm.classList.toggle('hide', isLeave);
+    leaveBanner.classList.toggle('show', isLeave);
+  }
+  attendanceRadios.forEach(function(r){
+    r.addEventListener('change', function(){
+      var selected = Array.from(attendanceRadios).find(function(x){ return x.checked; });
+      toggleAttendanceUI(!!selected && selected.value === 'Leave');
+      updateProgress();
+      saveDraftSoon();
+    });
+  });
+
   callPurpose.addEventListener('change', function(){
     var v = callPurpose.value;
     callDetails.classList.toggle('show', v !== '' && v !== 'No calls');
@@ -710,10 +758,22 @@
   }
 
   function updateProgress(){
-    var total = 6;
+    var attendance = Array.from(attendanceRadios).find(function(r){ return r.checked; });
+    var isLeave = !!attendance && attendance.value === 'Leave';
+    if(isLeave){
+      var leaveTotal = 3;
+      var leaveFilled = 0;
+      if(document.getElementById('f_date').value) leaveFilled++;
+      if(document.getElementById('f_name').value) leaveFilled++;
+      if(attendance) leaveFilled++;
+      document.getElementById('progressFill').style.width = Math.max(8, (leaveFilled / leaveTotal) * 100) + '%';
+      return;
+    }
+    var total = 7;
     var filled = 0;
     if(document.getElementById('f_date').value) filled++;
     if(document.getElementById('f_name').value) filled++;
+    if(attendance) filled++;
     if(document.getElementById('f_start').value && document.getElementById('f_end').value) filled++;
     var fv = Array.from(fieldVisitRadios).find(function(r){ return r.checked; });
     if(fv) filled++;
@@ -750,10 +810,12 @@
   }
   function saveDraftNow(){
     try{
+      var attendance = Array.from(attendanceRadios).find(function(r){ return r.checked; });
       var fv = Array.from(fieldVisitRadios).find(function(r){ return r.checked; });
       var draft = {
         date: document.getElementById('f_date').value,
         name: document.getElementById('f_name').value,
+        attendance: attendance ? attendance.value : '',
         start: document.getElementById('f_start').value,
         end: document.getElementById('f_end').value,
         fieldVisit: fv ? fv.value : '',
@@ -787,6 +849,13 @@
     try{ d = JSON.parse(raw); }catch(e){ return; }
     if(!d) return;
     if(d.name) document.getElementById('f_name').value = d.name;
+    if(d.attendance){
+      var attRadio = Array.from(attendanceRadios).find(function(r){ return r.value === d.attendance; });
+      if(attRadio){
+        attRadio.checked = true;
+        toggleAttendanceUI(d.attendance === 'Leave');
+      }
+    }
     if(d.start) document.getElementById('f_start').value = d.start;
     if(d.end) document.getElementById('f_end').value = d.end;
     if(d.fieldVisit){
@@ -872,57 +941,65 @@
     hideSubmitError();
     var valid = true;
     [
-      'err_date','err_name','err_time','err_fieldVisit','err_visits',
+      'err_date','err_name','err_attendance','err_time','err_fieldVisit','err_visits',
       'err_callPurpose','err_callCount','err_callPositive','err_coord',
       'err_sector','err_profiling'
     ].forEach(clearError);
 
     if(!document.getElementById('f_date').value){ setError('err_date'); valid = false; }
     if(!document.getElementById('f_name').value){ setError('err_name'); valid = false; }
-    if(!document.getElementById('f_start').value || !document.getElementById('f_end').value){
-      setError('err_time'); valid = false;
-    }
 
-    var fv = Array.from(fieldVisitRadios).find(function(r){ return r.checked; });
-    var visitRows = [];
-    if(!fv){
-      setError('err_fieldVisit');
-      valid = false;
-    } else if(fv.value === 'Yes'){
-      var blocks = visitBlocks.querySelectorAll('.visit-block');
-      if(blocks.length === 0){
-        setError('err_visits'); valid = false;
-      } else {
-        blocks.forEach(function(b){
-          var loc = b.querySelector('.v-location').value.trim();
-          var st = b.querySelector('.v-start').value;
-          var en = b.querySelector('.v-end').value;
-          var ds = b.querySelector('.v-desc').value.trim();
-          if(!loc || !st || !en || !ds){ valid = false; }
-          visitRows.push({ location: loc, start: st, end: en, desc: ds });
-        });
-        if(!valid && document.getElementById('err_visits')) setError('err_visits');
+    var attendance = Array.from(attendanceRadios).find(function(r){ return r.checked; });
+    if(!attendance){ setError('err_attendance'); valid = false; }
+    var isLeave = !!attendance && attendance.value === 'Leave';
+
+    var fv, visitRows = [];
+
+    if(!isLeave){
+      if(!document.getElementById('f_start').value || !document.getElementById('f_end').value){
+        setError('err_time'); valid = false;
       }
+
+      fv = Array.from(fieldVisitRadios).find(function(r){ return r.checked; });
+      if(!fv){
+        setError('err_fieldVisit');
+        valid = false;
+      } else if(fv.value === 'Yes'){
+        var blocks = visitBlocks.querySelectorAll('.visit-block');
+        if(blocks.length === 0){
+          setError('err_visits'); valid = false;
+        } else {
+          blocks.forEach(function(b){
+            var loc = b.querySelector('.v-location').value.trim();
+            var st = b.querySelector('.v-start').value;
+            var en = b.querySelector('.v-end').value;
+            var ds = b.querySelector('.v-desc').value.trim();
+            if(!loc || !st || !en || !ds){ valid = false; }
+            visitRows.push({ location: loc, start: st, end: en, desc: ds });
+          });
+          if(!valid && document.getElementById('err_visits')) setError('err_visits');
+        }
+      }
+
+      if(!callPurpose.value){
+        setError('err_callPurpose');
+        valid = false;
+      } else if(callPurpose.value !== 'No calls'){
+        if(document.getElementById('f_callCount').value === ''){ setError('err_callCount'); valid = false; }
+        if(document.getElementById('f_callPositive').value === ''){ setError('err_callPositive'); valid = false; }
+      }
+
+      var anyCoord =
+        coordNone.checked ||
+        Array.from(coordItems).some(function(c){ return c.checked; }) ||
+        coordOtherCheck.checked;
+      if(!anyCoord){ setError('err_coord'); valid = false; }
+
+      var anySector = Array.from(document.querySelectorAll('.sector-check')).some(function(c){ return c.checked; });
+      if(!anySector){ setError('err_sector'); valid = false; }
+
+      if(document.getElementById('f_profiling').value === ''){ setError('err_profiling'); valid = false; }
     }
-
-    if(!callPurpose.value){
-      setError('err_callPurpose');
-      valid = false;
-    } else if(callPurpose.value !== 'No calls'){
-      if(document.getElementById('f_callCount').value === ''){ setError('err_callCount'); valid = false; }
-      if(document.getElementById('f_callPositive').value === ''){ setError('err_callPositive'); valid = false; }
-    }
-
-    var anyCoord =
-      coordNone.checked ||
-      Array.from(coordItems).some(function(c){ return c.checked; }) ||
-      coordOtherCheck.checked;
-    if(!anyCoord){ setError('err_coord'); valid = false; }
-
-    var anySector = Array.from(document.querySelectorAll('.sector-check')).some(function(c){ return c.checked; });
-    if(!anySector){ setError('err_sector'); valid = false; }
-
-    if(document.getElementById('f_profiling').value === ''){ setError('err_profiling'); valid = false; }
 
     if(!valid){
       var firstError = document.querySelector('.error-msg.show');
@@ -935,41 +1012,77 @@
       return;
     }
 
-    var noAdmissionsRow = document.querySelector('.sector-row[data-sector="No admissions"]');
-    var noAdmissionsChecked = noAdmissionsRow && noAdmissionsRow.querySelector('.sector-check').checked;
-
-    var standardCoord = [];
-    if(coordNone.checked) standardCoord.push('No activity today');
-    coordItems.forEach(function(c){ if(c.checked) standardCoord.push(c.value); });
-    if(coordOtherCheck.checked) standardCoord.push('Other');
-
     var submissionToken = makeSubmissionToken();
-    var entry = {
-      submissionToken: submissionToken,
-      date: document.getElementById('f_date').value,
-      memberName: document.getElementById('f_name').value,
-      startTime: document.getElementById('f_start').value,
-      endTime: document.getElementById('f_end').value,
-      fieldVisit: fv.value,
-      // Sent as a real array — the backend writes one row per visit to
-      // a separate "Field Visits" sheet, so any number of visits works.
-      visits: fv.value === 'Yes' ? visitRows : [],
-      callingPurpose: callPurpose.value,
-      otherCallingPurpose: callPurpose.value === 'Other' ? callOther.value.trim() : '',
-      totalCalls: callPurpose.value === 'No calls' ? '0' : document.getElementById('f_callCount').value,
-      positiveResponses: callPurpose.value === 'No calls' ? '0' : document.getElementById('f_callPositive').value,
-      coordinationActivities: standardCoord.join(', '),
-      otherCoordinationActivity: coordOtherCheck.checked ? coordOtherInput.value.trim() : '',
-      setAdmissions: sectorCount('SET'),
-      btAdmissions: sectorCount('BT'),
-      ddeoAdmissions: sectorCount('DDEO'),
-      gstAdmissions: sectorCount('GST'),
-      otherAdmissions: sectorCount('Other'),
-      noAdmissionsToday: noAdmissionsChecked ? 'Yes' : 'No',
-      familyProfilingForms: document.getElementById('f_profiling').value,
-      blockers: document.getElementById('f_blockers').value.trim(),
-      otherNotes: document.getElementById('f_otherNotes').value.trim()
-    };
+    var entry;
+
+    if(isLeave){
+      // On leave — only the date, name and attendance matter. The backend
+      // fills every other column in the Daily Log row with "Leave" and
+      // skips writing any rows to the Field Visits sheet.
+      entry = {
+        submissionToken: submissionToken,
+        date: document.getElementById('f_date').value,
+        memberName: document.getElementById('f_name').value,
+        attendance: 'Leave',
+        onLeave: true,
+        startTime: '',
+        endTime: '',
+        fieldVisit: '',
+        visits: [],
+        callingPurpose: '',
+        otherCallingPurpose: '',
+        totalCalls: '',
+        positiveResponses: '',
+        coordinationActivities: '',
+        otherCoordinationActivity: '',
+        setAdmissions: '0',
+        btAdmissions: '0',
+        ddeoAdmissions: '0',
+        gstAdmissions: '0',
+        otherAdmissions: '0',
+        noAdmissionsToday: '',
+        familyProfilingForms: '',
+        blockers: '',
+        otherNotes: ''
+      };
+    } else {
+      var noAdmissionsRow = document.querySelector('.sector-row[data-sector="No admissions"]');
+      var noAdmissionsChecked = noAdmissionsRow && noAdmissionsRow.querySelector('.sector-check').checked;
+
+      var standardCoord = [];
+      if(coordNone.checked) standardCoord.push('No activity today');
+      coordItems.forEach(function(c){ if(c.checked) standardCoord.push(c.value); });
+      if(coordOtherCheck.checked) standardCoord.push('Other');
+
+      entry = {
+        submissionToken: submissionToken,
+        date: document.getElementById('f_date').value,
+        memberName: document.getElementById('f_name').value,
+        attendance: 'Present',
+        onLeave: false,
+        startTime: document.getElementById('f_start').value,
+        endTime: document.getElementById('f_end').value,
+        fieldVisit: fv.value,
+        // Sent as a real array — the backend writes one row per visit to
+        // a separate "Field Visits" sheet, so any number of visits works.
+        visits: fv.value === 'Yes' ? visitRows : [],
+        callingPurpose: callPurpose.value,
+        otherCallingPurpose: callPurpose.value === 'Other' ? callOther.value.trim() : '',
+        totalCalls: callPurpose.value === 'No calls' ? '0' : document.getElementById('f_callCount').value,
+        positiveResponses: callPurpose.value === 'No calls' ? '0' : document.getElementById('f_callPositive').value,
+        coordinationActivities: standardCoord.join(', '),
+        otherCoordinationActivity: coordOtherCheck.checked ? coordOtherInput.value.trim() : '',
+        setAdmissions: sectorCount('SET'),
+        btAdmissions: sectorCount('BT'),
+        ddeoAdmissions: sectorCount('DDEO'),
+        gstAdmissions: sectorCount('GST'),
+        otherAdmissions: sectorCount('Other'),
+        noAdmissionsToday: noAdmissionsChecked ? 'Yes' : 'No',
+        familyProfilingForms: document.getElementById('f_profiling').value,
+        blockers: document.getElementById('f_blockers').value.trim(),
+        otherNotes: document.getElementById('f_otherNotes').value.trim()
+      };
+    }
 
     var submitBtn = document.getElementById('submitBtn');
     var originalText = submitBtn.textContent;
